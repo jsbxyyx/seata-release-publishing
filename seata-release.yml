@@ -1,0 +1,63 @@
+name: seata-release
+
+on:
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: 'Log level'
+        required: true
+        default: 'info'
+        type: choice
+        options:
+        - info
+        - warning
+        - debug
+      ver:
+        description: 'Release version'
+        required: true
+        default: '2.4.0'
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Import GPG Key
+      uses: crazy-max/ghaction-import-gpg@v6
+      with:
+        gpg_private_key: ${{ secrets.PRI }}
+        passphrase: ${{ secrets.PASS }}
+        trust_level: 5
+    - name: Release
+      env:
+        XX: ''
+        VER: ${{ github.event.inputs.ver }}
+      run: |
+        cd /tmp
+        
+        wget -q https://cdn.azul.com/zulu/bin/zulu8.86.0.25-ca-jdk8.0.452-linux_x64.tar.gz
+        tar -zxf zulu8.86.0.25-ca-jdk8.0.452-linux_x64.tar.gz
+        mv zulu8.86.0.25-ca-jdk8.0.452-linux_x64 jdk8
+        export JAVA_HOME=/tmp/jdk8
+
+        cat > /tmp/settings.xml << EOF
+        ${{ secrets.SETTINGS }}
+        EOF
+        
+        ls /tmp
+
+        export GPG_TTY=$(tty)
+        gpg --list-keys
+        
+        git clone https://github.com/apache/incubator-seata.git
+        cd incubator-seata
+        git branch
+        git remote -v
+        git fetch
+        git checkout remotes/origin/${VER} -b r-${VER}
+        git pull
+        ./mvnw -s /tmp/settings.xml clean deploy -Prelease -DskipTests -e -B -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn
+    - name: Clean
+      if: always()
+      run: |
+        rm -rf /tmp/settings.xml
+        rm -rf /tmp/incubator-seata
