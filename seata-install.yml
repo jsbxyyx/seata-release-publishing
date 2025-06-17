@@ -1,0 +1,111 @@
+name: seata-install
+
+on:
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: 'Log level'
+        required: true
+        default: 'info'
+        type: choice
+        options:
+        - info
+        - warning
+        - debug
+      ver:
+        description: 'Release version'
+        required: true
+        default: '2.4.0'
+
+jobs:
+  install:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+    - name: Import GPG Key
+      uses: crazy-max/ghaction-import-gpg@v6
+      with:
+        gpg_private_key: ${{ secrets.PRI }}
+        passphrase: ${{ secrets.PASS }}
+        trust_level: 5
+    - name: Install
+      env:
+        XX: ''
+        VER: ${{ github.event.inputs.ver }}
+      run: |
+        cd /tmp
+        
+        wget -q https://cdn.azul.com/zulu/bin/zulu8.86.0.25-ca-jdk8.0.452-linux_x64.tar.gz
+        tar -zxf zulu8.86.0.25-ca-jdk8.0.452-linux_x64.tar.gz
+        mv zulu8.86.0.25-ca-jdk8.0.452-linux_x64 jdk8
+        export JAVA_HOME=/tmp/jdk8
+
+        ls /tmp
+        
+        git clone https://github.com/apache/incubator-seata.git
+        cd incubator-seata
+        git branch
+        git remote -v
+        git fetch
+        git checkout remotes/origin/${VER} -b ${VER}-d
+        git pull
+        ./mvnw -Prelease-seata -Dmaven.test.skip=true -Dskip.npm=true -T4C -Dpmd.skip=true clean install -U
+    - name: Sign and Verify
+      env:
+        VER: ${{ github.event.inputs.ver }}
+      run: |
+        export GPG_TTY=$(tty)
+        gpg --list-keys
+        
+        bin_dir=/tmp/incubator-seata/distribution/target
+        cd ${bin_dir}
+
+        bin_file=apache-seata-${VER}-incubating-bin
+        
+        shasum -b -a 512 ${bin_file}.tar.gz > ${bin_file}.tar.gz.sha512
+        shasum -c ${bin_file}.tar.gz.sha512
+
+        gpg --armor --output ${bin_file}.tar.gz.asc --detach-sig ${bin_file}.tar.gz
+        gpg --verify ${bin_file}.tar.gz.asc ${bin_file}.tar.gz
+
+        src_file=apache-seata-${VER}-incubating-src
+        
+        download_file=incubator-seata-${VER}
+        wget -q https://github.com/apache/incubator-seata/archive/refs/heads/${VER}.zip -O ${download_file}.zip
+        unzip -o ${download_file}.zip
+        mv ${download_file} ${src_file}
+        tar -zcf ${src_file}.tar.gz ${src_file}
+
+        shasum -b -a 512 ${src_file}.tar.gz > ${src_file}.tar.gz.sha512
+        shasum -c ${src_file}.tar.gz.sha512
+
+        gpg --armor --output ${src_file}.tar.gz.asc --detach-sig ${src_file}.tar.gz
+        gpg --verify ${src_file}.tar.gz.asc ${src_file}.tar.gz
+        
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Tag
+      id: tag
+      env:
+        VER: ${{ github.event.inputs.ver }}
+      run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          TAG=v${VER}-$(TZ='Asia/Singapore' date +%Y%m%d%H%M)
+          git tag -a $TAG -m "Published version $TAG" ${GITHUB_SHA}
+          git push origin $TAG
+          echo "new_tag=$TAG" >> $GITHUB_OUTPUT
+    - name: Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          /tmp/incubator-seata/distribution/target/*.tar.gz
+          /tmp/incubator-seata/distribution/target/*.sha512
+          /tmp/incubator-seata/distribution/target/*.asc
+        tag_name: ${{ steps.tag.outputs.new_tag }}
+    - name: Clean
+      if: always()
+      run: |
+        rm -rf /tmp/settings.xml
+        rm -rf /tmp/incubator-seata
