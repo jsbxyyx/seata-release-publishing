@@ -6,7 +6,7 @@ seata release publishing
 
 > **注意**
 > 
-> **创建一个私有仓库把seata-install.yml, seata-release.yml放到.github/workflow/目录下，并在仓库 > settings > Actions secrets and variables > secrets > Repository secrets > 添加PASS, PRI, PUB, SETTINGS变量**
+> **创建一个私有仓库把seata-install.yml, seata-release.yml放到.github/workflows/目录下，并在仓库 > settings > Actions secrets and variables > secrets > Repository secrets > 添加PASS, PRI, PUB, SETTINGS变量**
 >
 > **PASS: gpg密码**
 > 
