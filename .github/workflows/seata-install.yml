@@ -60,6 +60,7 @@ jobs:
         
         bin_dir=/tmp/incubator-seata/distribution/target
         cd ${bin_dir}
+        ls -al
 
         bin_file=apache-seata-${VER}-incubating-bin
         
@@ -73,6 +74,7 @@ jobs:
         
         download_file=incubator-seata-${VER}
         wget -q https://github.com/apache/incubator-seata/archive/refs/heads/${VER}.zip -O ${download_file}.zip
+        ls -al
         unzip -o ${download_file}.zip
         mv ${download_file} ${src_file}
         tar -zcf ${src_file}.tar.gz ${src_file}
